@@ -1,0 +1,45 @@
+name: Build PCF TimePicker Solution
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Power Platform CLI
+        run: npm install -g pac
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build PCF control
+        working-directory: DCE.PCF/TimePickerComponent
+        run: |
+          npm ci
+          npm run build
+
+      - name: Create solution shell
+        run: |
+          mkdir output
+          mkdir WavsTimePicker.Sln
+          cd WavsTimePicker.Sln
+          pac solution init --publisher-name WMATA --publisher-prefix wma --solution-name WavsTimePicker
+          pac solution add-reference ../DCE.PCF/TimePickerComponent/TimePickerComponent.pcfproj
+          msbuild /t:restore
+          msbuild /p:configuration=Release
+          copy .\bin\Release\*.zip ..\output\
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: timepicker-solution-zips
+          path: output/*.zip
