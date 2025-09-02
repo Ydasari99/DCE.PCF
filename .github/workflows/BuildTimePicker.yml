@@ -21,22 +21,25 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      # Build the PCF control (path is from repo root)
       - name: Build PCF control
-        working-directory: DCE.PCF/TimePickerComponent
+        working-directory: TimePickerComponent
         run: |
           npm ci
           npm run build
 
-      - name: Create solution shell
+      # Create solution, add the PCF project, pack, and copy zips to /output
+      - name: Pack solution
+        shell: pwsh
         run: |
           mkdir output
           mkdir WavsTimePicker.Sln
           cd WavsTimePicker.Sln
           pac solution init --publisher-name WMATA --publisher-prefix wma --solution-name WavsTimePicker
-          pac solution add-reference ../DCE.PCF/TimePickerComponent/TimePickerComponent.pcfproj
+          pac solution add-reference ..\TimePickerComponent\TimePickerComponent.pcfproj
           msbuild /t:restore
           msbuild /p:configuration=Release
-          copy .\bin\Release\*.zip ..\output\
+          Copy-Item .\bin\Release\*.zip ..\output\
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
