@@ -27,21 +27,35 @@ jobs:
           npm ci
           npm run build
 
-      - name: Pack solution
+      - name: Create and pack solution
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path output -Force | Out-Null
+          # 1) Create solution shell
           New-Item -ItemType Directory -Path WavsTimePicker.Sln -Force | Out-Null
           cd WavsTimePicker.Sln
           pac solution init --publisher-name WMATA --publisher-prefix wma --solution-name WavsTimePicker
+
+          # 2) Add the PCF project reference
           pac solution add-reference ..\TimePickerComponent\TimePickerComponent.pcfproj
-          msbuild /t:restore
-          msbuild /p:configuration=Release
-          # Copy any zips from Debug or Release, wherever they land
+
+          # 3) Locate the cdsproj created by the CLI
+          $proj = Get-ChildItem -Recurse -Filter *.cdsproj | Select-Object -First 1
+          if (-not $proj) { throw "No .cdsproj found after 'pac solution init/add-reference'." }
+          Write-Host "Building cdsproj: $($proj.FullName)"
+
+          # 4) Build that exact cdsproj (restore + Release build)
+          msbuild $proj.FullName /t:restore
+          msbuild $proj.FullName /p:configuration=Release /v:m
+
           cd ..
+
+          # 5) Collect any produced zips (Debug or Release)
+          New-Item -ItemType Directory -Path output -Force | Out-Null
           $zips = Get-ChildItem -Path ".\WavsTimePicker.Sln" -Recurse -Filter *.zip
-          if (-not $zips) { throw "No solution ZIPs were produced by MSBuild. Check the MSBuild logs above." }
-          Copy-Item $zips.FullName -Destination .\output\
+          if (-not $zips) {
+            throw "No solution ZIPs were produced. Scroll up to the MSBuild step for the first error."
+          }
+          $zips | ForEach-Object { Copy-Item $_.FullName -Destination .\output\ }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
